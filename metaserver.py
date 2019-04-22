@@ -1,13 +1,13 @@
 #Author: Huy Lam
 #Course: CSCI4211
-
+#Date: 4/21/2019
 
 from socket import *
 from collections import OrderedDict
 #for multithreading
 from _thread import *
 import threading
-
+import random
 
 
 class ServerConnection:
@@ -17,6 +17,7 @@ class ServerConnection:
     peer_list = []
     #list of ip addresses in order
     ip_list = []
+    port_list = []
     #peer_cache is an ordered hashmap of servername:# of current connections key-value pairs
     peer_cache = OrderedDict()
     #server_port_dict is an ordered hashmap of servername:port# pairs
@@ -30,37 +31,16 @@ class ServerConnection:
         self.serverSocket = socket(AF_INET,SOCK_STREAM)
         self.serverSocket.bind((self.host,self.port))
         self.firstConnection = True
-    def updateConnections(self):
-        if self.numberOfConnections < 2:
-            self.numberOfConnections += 1
-            #if the number of connections is at 2
-            if self.numberOfConnections == 2:
-                self.nextReferral += 1
-        else:
-            print("Already at max connections! (2)")
-    def addPeer(self, peer):
-        #todo: Could add a limit on peers once we reach 2
-        self.peer_list.append(peer)
-        self.updateConnections()
+        self.nextPort = self.port + random.randint(10,200)
 
+    #Refer server to first item in peer cache
     #return a message "Port number, Referred port number"
     def getAvailablePeer(self, clientSocket):
         print("in getAvailablePeer")
         servers = list(self.peer_cache.items())
-        #Case when available peer has less than 2 connections
-        if self.peer_cache[servers[self.nextReferral][0]] < 2:
-            #get an available server with less than 2 connections
-            availablePeer = (clientSocket.getsockname()[1], self.peer_list[self.nextReferral].getsockname()[1])
-            if self.firstConnection:
-                self.firstConnection = False
-                return availablePeer
-            self.peer_cache[servers[self.nextReferral][0]] += 1
-            return availablePeer
-        #if current peer has 2 connections, go to next item on list
-        else:
-            self.nextReferral += 1
-            availablePeer = (clientSocket.getsockname()[1], self.peer_list[self.nextReferral].getsockname()[1])
-            return availablePeer
+        print(servers)
+
+        return self.peer_list[0]
     #input is a client socket connection
     def handleInput(self, input):
         while True:
@@ -69,42 +49,31 @@ class ServerConnection:
                 data = input.recv(4096).decode()
                 if not data:
                     print("No data received, connection closed (?)\n")
-                    #thread_lock.release()
+
                     break
 
                 if data == "P2P":
                     print("***Valid Flag***")
-
-                    #sends an available server ip to the connected server
-                    # if len(serverList) >= 1:
-                    #     for server in serverList:
-                    #         if server.numberOfConnections == 2:
-                    #             continue
-                    #         else:
-                    #             c = ServerConnection(input.getsockname()[0],input.getsockname()[1])
-                    #             c.addPeer(server)
-                    #             server.addPeer(c)
-                    #             #send client
-                    #             input.send("{}, {}".format(input.getsockname()[1], server.getAvailablePeer(input)).encode())
-                    #             #input.send("{}, {}".format(input.getsockname()[0], server.getAvailablePeer()).encode())
-                    #             print("***Connected to Referred Server ID {}***".format(server.hostName))
-                    #
-                    #             serverList.append(c)
-                    #             break
-
+                    #get port #
+                    data = input.recv(4096).decode()
+                    self.port_list.append(data)
+                    print(data)
+                    if self.firstConnection:
+                        print("Adding first server")
+                        self.firstConnection = False
+                        input.sendall("1".encode())
+                        break
                     available_peer = self.getAvailablePeer(input)
+                    print("Finished with getAvailablePeer")
                     #<port number, referred port number>
-                    print("Sending "+"{},{}".format(available_peer[0], available_peer[1]))
-                    #print("***Connected to Referred Server ID {}***".format(self.peer_cache[self.nextReferral]))
                     print("***Connected to Referred Server ID " + str(self.ip_list[self.nextReferral]) + "***")
                     print(self.peer_cache)
                     print(self.ip_list)
                     print(self.server_port_dict)
-                    input.sendall("{},{}".format(available_peer[0], available_peer[1]).encode())
-                    # elif len(serverList) == 0:
-                    #     #todo add server to serverList
-                    #     newConnection = ServerConnection(input.getsockname()[0], input.getsockname()[1])
-                    #     serverList.append(newConnection)
+                    print(self.port_list)
+                    print(input.getsockname()[1])
+                #    input.sendall("{},{}".format(input.getsockname()[1], available_peer.getsockname()[1]).encode())
+                    input.sendall("{},{}".format(input.getsockname()[1], self.port_list[0]).encode())
                     print("\n")
                     print("waiting for connections...")
 
@@ -131,13 +100,8 @@ class ServerConnection:
             #thread_lock.acquire()
             #start_new_thread(self.handleInput, (connectionSocket,))
             threading.Thread(target = self.handleInput, args = (connectionSocket,)).start()
+        print("Closing connection to ", input)
         input.close()
-## IMPORTANT GLOBALS ##
 
-#thread_lock = threading.lock()
-
-#def Main():
-    #sock.getsockname()[1] to get port
-
-Server = ServerConnection("", 12020)
+Server = ServerConnection("", 12066)
 Server.run()
